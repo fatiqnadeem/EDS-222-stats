@@ -1,0 +1,128 @@
+---
+title: "EDS 222: Week 1: In-class Assignment"
+author: "{STUDENT NAME}"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Load all the packages needed here
+library(tidyverse)
+```
+
+# Sampling in R
+
+```{r}
+# We are going to learn two types of sampling methodologies here: (i) Simple Random Sampling and; (ii) Stratified Sampling. For this we will make use of the county level data from the usdata package. This data frame contains data from counties in all 50 states plus the District of Columbia. 
+
+# Step 1: Use the `library(usdata)` to load the data. The data will be stored in an object called county. Use the functions `filter()` and `droplevels()` to remove all data from the District of Columbia and store it in a tidy dataframe called `county_noDC`
+
+library(usdata)
+county_noDC <- 
+  county %>%
+  filter(state != "District of Columbia") %>%
+  droplevels()
+
+# Step 2: You are tasked at the EPA to collect data on air quality from all 50 states in the US. However, the current president has initiated significant budget cuts in the EPA which only allows them to collect data from 150 of the over 3000 counties in the United States. Use the function `slice_sample()` to select 150 counties that you think can be representative of the US. and store them in a tidy dataframe called `county_srs`
+
+county_srs <- 
+  county_noDC %>%
+  slice_sample(n = 150)
+
+# Comments for Fatiq: Students need to learn how to create a sampling function and how it works i.e. probabilities etc. Maybe start with sample()? Tidyverse makes life very easy. -_-
+
+# Step 3: Evaluate the distribution of sampled counties across different states in the dataframe `county_srs`. Are the number of sampled counties in each state different? Would you call this a representative sample? 
+
+county_srs %>%
+  group_by(state) %>%
+  count() %>% 
+  ungroup()
+
+# Step 4: As you might have seen in step 3 that the number of counties in each state was different and that makes our sample non-representative of the US (why?). Use the concepts of stratified random sampling learned in class to select equal number of counties in each state. Hint: This code is very similar to how we selected the simple random sample, except that before sampling we first group by state and then sample three observations per group. Store the resulting dataframe as `country_str`
+
+county_str <- 
+  county_noDC %>%
+  group_by(state) %>%
+  slice_sample(n = 3) %>% 
+  ungroup()
+```
+
+
+# Sampling issues in real data: How does sampling influence your data and what you can learn from it?
+
+```{r}
+
+
+
+
+```
+
+
+# Designing an experiment
+
+```{r}
+# 1. Generate a data frame with 100 observations and potential outcomes, control
+  # and treatment, control has random noise, the treatment variable has the 
+  # random noise from the control plus a treatment effect. 
+sample <-
+  tibble(Y0 = rnorm(n = 100),
+         Y1 = Y0 + 0.5)
+
+# 2. Assign binary treatment with equal prob of being in control and treatment:
+sample <-
+  sample %>%
+  mutate(Z = sample(
+    c(0, 1),
+    size = 100,
+    replace = TRUE,
+    prob = c(0.5, 0.5)
+  ))
+
+# 3. Contruct observed outcome
+sample <-
+  sample %>%
+  mutate(
+    Y = if_else(Z == 1, Y1, Y0))
+
+# 4. Look at data, treatment effect:    
+    head(sample)
+    
+    sample %>% summarize(ATE = mean(Y1 - Y0))
+    
+    sample %>% summarize(dim = mean(Y[Z == 1]) - mean(Y[Z == 0]))
+    
+    sample %>% summarize(
+      estimand = mean(Y1 - Y0),
+      estimate = mean(Y[Z == 1]) - mean(Y[Z == 0]))
+    
+    
+# 5. Do steps 1-4 in one pipeline:
+    tibble(Y0 = rnorm(n = 100), Y1 = Y0 + 0.5) %>%
+      mutate(Z = sample(
+        c(0, 1), 100, replace = TRUE, prob = c(.5, .5))) %>%
+      mutate(Y = if_else(Z == 1, Y1, Y0)) %>%
+      summarize(
+        estimand = mean(Y1 - Y0),
+        estimate = mean(Y[Z == 1]) - mean(Y[Z == 0]))
+    
+ # 6. Create a function to do steps 1-4:    
+    run_experiment <- function() {
+      fixed_population %>%
+        mutate(Z = sample(c(0, 1), 100, replace = TRUE, prob = c(.5, .5))) %>%
+        mutate(Y = if_else(Z == 1, Y1, Y0)) %>%
+        summarize(estimand = mean(Y1 - Y0),
+                  estimate = mean(Y[Z == 1]) - mean(Y[Z == 0])) %>%
+        as_vector()
+    }
+
+# 7. Using the function in 6 to do 1000 replications of the process in 1-4 and report what you observe about the results:     
+    many_runs <-
+      replicate(
+        n = 1000,
+        expr = run_experiment(),
+        simplify = TRUE)
+    
+    apply(many_runs, 1, mean)
+
+```
