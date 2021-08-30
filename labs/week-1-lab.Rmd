@@ -52,9 +52,27 @@ county_str <-
 # Sampling issues in real data: How does sampling influence your data and what you can learn from it?
 
 ```{r}
-# In this excercise we will be using the government based datasets i.e. 
+# As we have learned in the lectures that population and sample data frames differ. In this exercise we will look at a case study from the developing world. South Asia has one of the most polluted cities in the world. Pakistan was ranked to contain the second most air pollution in the world in 2020 (IQAIR, 2020). We use data from Pakistan that is generated from a crowd-sourced data source (IQAir) and a public-second data source i.e. Environmental Protection Department, Government of Punjab, Pakistan. The crowsourced data source has data for the years 2018 and 2019 for multiple cities in Pakistan. The government data has data for the years 2018 and 2019 for one city. Morover, the government data has only one observation per day whereas the crowdsourced data has multiple ovservations per day. 
+
+# Step 1: Identify by just reading the description above which dataframe is the sample data and which is the population data. 
+
+# Answer: The goverrnment data is the sample data and the crowdsourced data is the population data. 
+
+# Step 2: Use the following links to load the data into R: 
+
 # crowdsourced data: https://www.dropbox.com/s/py7znifq0tmlbpg/airpol-PK-public.RDS?dl=0
 # government data: https://www.dropbox.com/s/11p4uyqgg2ha1bm/airpol-PK-govt.RDS?dl=0
+
+crowsourced <- readRDS("https://www.dropbox.com/s/py7znifq0tmlbpg/airpol-PK-public.RDS?dl=0")
+govt <- readRDS("https://www.dropbox.com/s/11p4uyqgg2ha1bm/airpol-PK-govt.RDS?dl=0")
+  
+# Step 3: Sampling strategy: 
+
+
+# Step 4: Compare mean, min, max and standard deviation of the sample and the population data: 
+
+
+# Step 5: Identify biases between sample and population:
 
 
 
@@ -126,5 +144,63 @@ sample <-
         simplify = TRUE)
     
     apply(many_runs, 1, mean)
+    
+# 8. Add Blocking within the sampling part: 
+    
+    # 8.1 generate complete randomization function
+    complete_ra <- function(data) {
+      mutate(data, Z = sample(rep(c(0, 1), each = n() / 2), n(), replace = FALSE))
+    }
+    
+    # 8.2 Balance 
+    tibble(u = rnorm(100),  # unobserved covariate
+           x = rnorm(100)) %>%   # observed covariate)
+           mutate(Y0 = x + u,
+                  Y1 = Y0 + 5) %>%
+             complete_ra() %>%
+             mutate(Y = if_else(Z == 0, Y0, Y1)) %>%
+             summarize(balance = mean(x[Z == 1]) - mean(x[Z == 0])) %>%
+             pull(balance)
+    
+    # 8.3 Balance in a function 
+    my_experiment <- function() {
+      tibble(u = rnorm(100),  # unobserved covariate
+             x = rnorm(100)) %>%    # observed covariate )
+             mutate(Y0 = x + u,
+                    Y1 = Y0 + 5) %>%
+               complete_ra() %>%
+               mutate(Y = if_else(Z == 0, Y0, Y1)) %>%
+               summarize(balance = mean(x[Z == 1]) - mean(x[Z == 0])) %>%
+               pull(balance)
+    }
+    
+    # 8.4 Simulate 1000 times
+    balance_statistics <- replicate(10000, my_experiment(), simplify = TRUE)
+    mean(balance_statistics)
+    
+    # 8.5 Identify bias coming due to lack of blocking
+    ggplot(data.frame(balance = balance_statistics), aes(balance)) + geom_histogram()
+
+    # 8.6 Blocking
+    block_ra <- function(data) {
+      data$Z <- NA
+      for (b in unique(data$block)) {
+        data$Z[data$block == b] <-
+          sample(c(0, 1), size = 2, replace = FALSE)
+      }
+      data
+    }
+    
+    my_experiment <- function() {
+      tibble(u = rnorm(100),  # unobserved covariate
+             x = rnorm(100)) %>%  # observed covariate)
+             mutate(Y0 = x + u,
+                    Y1 = Y0 + 5) %>%
+               arrange(x) %>%
+               mutate(block = rep(1:(n() / 2), each = 2)) %>% # note there is no randomization here!
+               block_ra() %>%
+               mutate(Y = if_else(Z == 0, Y0, Y1))
+    }
+
 
 ```
