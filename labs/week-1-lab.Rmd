@@ -52,7 +52,9 @@ county_str <-
 # Sampling issues in real data: How does sampling influence your data and what you can learn from it?
 
 ```{r}
-
+# In this excercise we will be using the government based datasets i.e. 
+# crowdsourced data: https://www.dropbox.com/s/py7znifq0tmlbpg/airpol-PK-public.RDS?dl=0
+# government data: https://www.dropbox.com/s/11p4uyqgg2ha1bm/airpol-PK-govt.RDS?dl=0
 
 
 
