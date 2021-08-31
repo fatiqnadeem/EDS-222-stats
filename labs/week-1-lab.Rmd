@@ -10,6 +10,12 @@ knitr::opts_chunk$set(echo = TRUE)
 # Load all the packages needed here
 library(tidyverse)
 library(readr)
+# 
+# NOTES FOR FATIQ: 
+#   - Go through code once again;
+#   - Use gt() to format tables and help students to think about that; 
+#   - Give resources to play around with RMD pdf templates; 
+#   - MAke the descriptions super easy and give more hints. 
 ```
 
 # Sampling in R
