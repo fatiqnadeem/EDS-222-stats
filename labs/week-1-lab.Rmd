@@ -9,6 +9,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 # Load all the packages needed here
 library(tidyverse)
+library(readr)
 ```
 
 # Sampling in R
@@ -58,21 +59,54 @@ county_str <-
 
 # Answer: The goverrnment data is the sample data and the crowdsourced data is the population data. 
 
-# Step 2: Use the following links to load the data into R: 
+# Step 2: Use the following links to load the data into R, name the government data as `govt` and the crowdsourced data as `crowsourced`: 
 
-# crowdsourced data: https://www.dropbox.com/s/py7znifq0tmlbpg/airpol-PK-public.RDS?dl=0
-# government data: https://www.dropbox.com/s/11p4uyqgg2ha1bm/airpol-PK-govt.RDS?dl=0
+# crowdsourced data: https://www.dropbox.com/s/8o9n7yhb5nituk8/airpol-PK-crowdsourced.csv?dl=0
+# government data: https://www.dropbox.com/s/t5f01jj0d6nev37/airpol-PK-govt.csv?dl=0
 
-crowsourced <- readRDS("https://www.dropbox.com/s/py7znifq0tmlbpg/airpol-PK-public.RDS?dl=0")
-govt <- readRDS("https://www.dropbox.com/s/11p4uyqgg2ha1bm/airpol-PK-govt.RDS?dl=0")
+
+# Note for Fatiq: fix the code below to work for a dropbox link
+crowdsourced <- read_delim("~/Dropbox/EDS222_data/week-one/lab/airpol-PK-crowdsourced.csv", ";", escape_double = FALSE, trim_ws = TRUE)
+govt <- read_delim("~/Dropbox/EDS222_data/week-one/lab/airpol-PK-govt.csv", ";", escape_double = FALSE, trim_ws = TRUE)
   
 # Step 3: Sampling strategy: 
 
+  # Step 3.1: Merge the two data frames using the common denominator date and keep the aqi variables both from the sample and the population data
+  # Hint: use the left_join() function in tidyverse for this task.
 
-# Step 4: Compare mean, min, max and standard deviation of the sample and the population data: 
+merged_df <- 
+  crowdsourced %>% 
+  group_by(date) %>% 
+  select(date, aqi_crowdsourced = aqi) %>% 
+  summarise_all(mean, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  inner_join(govt, by = "date") %>% 
+  rename(aqi_govt = aqi)
+
+# Step 4 : # The AQI represents the air quality index defined the Environmental Protection Agency (details can be found here:       https://www.epa.gov/outdoor-air-quality-data/about-air-data-reports#aqi). Use the variables AQI to calculate mean, min, max and standard deviation for the sample data, population data and the difference between the sample and population data
+
+merged_df %>% 
+  mutate(difference = aqi_crowdsourced - aqi_govt) %>% 
+  summarise(mean(aqi_crowdsourced), 
+            mean(aqi_govt), 
+            mean(difference),
+            
+            min(aqi_crowdsourced), 
+            min(aqi_govt), 
+            min(difference),
+            
+            max(aqi_crowdsourced), 
+            max(aqi_govt), 
+            max(difference),
+            
+            sd(aqi_crowdsourced), 
+            sd(aqi_govt), 
+            sd(difference)) %>% 
+  gather()
 
 
 # Step 5: Identify biases between sample and population:
+# Discuss how the sampling strategy biases (or doesn’t) the parameters in Step 4 as approximations of population statistics 
 
 
 
@@ -145,62 +179,57 @@ sample <-
     
     apply(many_runs, 1, mean)
     
-# 8. Add Blocking within the sampling part: 
+# 8. add blocking within the sampling part: 
     
-    # 8.1 generate complete randomization function
-    complete_ra <- function(data) {
-      mutate(data, Z = sample(rep(c(0, 1), each = n() / 2), n(), replace = FALSE))
-    }
+    # Step 1: First we need to identify what blocking is and why is it needed. For this we need to see what is the bias that our experiment suffers from due to lack of blocking. To do this, design an experiment, randomize the treatment status and see the bias in the simulated variable. Prove that in over 10,000 iterations this bias is reduced to 0. 
     
-    # 8.2 Balance 
-    tibble(u = rnorm(100),  # unobserved covariate
-           x = rnorm(100)) %>%   # observed covariate)
-           mutate(Y0 = x + u,
-                  Y1 = Y0 + 5) %>%
-             complete_ra() %>%
-             mutate(Y = if_else(Z == 0, Y0, Y1)) %>%
-             summarize(balance = mean(x[Z == 1]) - mean(x[Z == 0])) %>%
-             pull(balance)
+    tibble(u = rnorm(100),  
+           x = rnorm(100)) %>%  
+      mutate(Z = sample(rep(c(0, 1), each = n() / 2), n(), replace = FALSE)) %>% 
+      summarize(balance = mean(x[Z == 1]) - mean(x[Z == 0])) %>%
+      pull(balance)
     
-    # 8.3 Balance in a function 
     my_experiment <- function() {
-      tibble(u = rnorm(100),  # unobserved covariate
-             x = rnorm(100)) %>%    # observed covariate )
-             mutate(Y0 = x + u,
-                    Y1 = Y0 + 5) %>%
-               complete_ra() %>%
-               mutate(Y = if_else(Z == 0, Y0, Y1)) %>%
-               summarize(balance = mean(x[Z == 1]) - mean(x[Z == 0])) %>%
-               pull(balance)
-    }
+      tibble(u = rnorm(100),  
+             x = rnorm(100)) %>%  
+        mutate(Z = sample(rep(c(0, 1), each = n() / 2), n(), replace = FALSE)) %>% 
+        summarize(balance = mean(x[Z == 1]) - mean(x[Z == 0])) %>%
+        pull(balance)
+      }
     
-    # 8.4 Simulate 1000 times
     balance_statistics <- replicate(10000, my_experiment(), simplify = TRUE)
     mean(balance_statistics)
     
-    # 8.5 Identify bias coming due to lack of blocking
+    # Step 2: Show the iterated bias generated in step 1 in a plot
     ggplot(data.frame(balance = balance_statistics), aes(balance)) + geom_histogram()
+    
+    # Step 3: Now we need to think about blocking. We will start to do this by changing the function to use block randomization. For this, first, we should construct blocks. First generate one observed covariate and construct blocks according to that. 
+    
+    # Step 3.1: we need to create a block indicator. Blocks are based on observed units being similar to each other in the greatest way possible. Make use of the function `arrange()` to sort the data in the order of the observed covariate and then mutate a block indicator where the the data resembles a series where the first two units are in block 1, the second two are in block 2, etc.
 
-    # 8.6 Blocking
-    block_ra <- function(data) {
-      data$Z <- NA
-      for (b in unique(data$block)) {
-        data$Z[data$block == b] <-
-          sample(c(0, 1), size = 2, replace = FALSE)
+    # Step 3.2: Now, once we have blocks, we need to randomize all the units within the blocks where one unit will go to treatment and one will go to control. randomize *within* blocks, exactly one to treatment and one to control. 
+    
+    # Note for Fatiq: The code below is ridocoulosy difficult. Please make it easier while not using any prepackaged functions. 
+
+    blocking <-
+      function(data) {
+        data$Z <- NA
+        for (b in unique(data$block)) {
+          data$Z[data$block == b] <-
+            sample(c(0, 1), size = 2, replace = FALSE)
+        }
+        data
       }
-      data
-    }
     
     my_experiment <- function() {
-      tibble(u = rnorm(100),  # unobserved covariate
-             x = rnorm(100)) %>%  # observed covariate)
-             mutate(Y0 = x + u,
-                    Y1 = Y0 + 5) %>%
-               arrange(x) %>%
-               mutate(block = rep(1:(n() / 2), each = 2)) %>% # note there is no randomization here!
-               block_ra() %>%
-               mutate(Y = if_else(Z == 0, Y0, Y1))
+      tibble(u = rnorm(100), 
+             x = rnorm(100)) %>%  
+        mutate(Y0 = x + u,
+               Y1 = Y0 + 5) %>%
+        arrange(x) %>%
+        mutate(block = rep(1:(n() / 2), each = 2)) %>% 
+        block_ra() %>%
+        mutate(Y = if_else(Z == 0, Y0, Y1))
     }
-
 
 ```
